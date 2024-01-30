@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/jwtauth"
 	httpSwagger "github.com/swaggo/http-swagger"
 	_ "biz-hub-auth-service/docs"
+	"github.com/go-chi/cors"
 )
 
 type WebServer struct {
@@ -36,9 +37,24 @@ func (s *WebServer) Start(token *jwtauth.JWTAuth, expiresIn int) {
 	s.Router.Use(middleware.Recoverer)
 	s.Router.Use(middleware.WithValue("jwt", token))
 	s.Router.Use(middleware.WithValue("JwtExperesIn", expiresIn))
+	s.Router.Use(cors.Handler(cors.Options{
+		AllowOriginFunc:  AllowOriginFunc,
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
+		ExposedHeaders:   []string{"Link"},
+		AllowCredentials: true,
+		MaxAge:           300, // Maximum value not ignored by any of major browsers
+	}))
 	s.Router.Get("/docs/*", httpSwagger.Handler(httpSwagger.URL("http://localhost:8081/docs/doc.json")))
 	for path, handler := range s.Handlers {
 		s.Router.Handle(path, handler)
 	}
 	http.ListenAndServe(s.WebServerPort, s.Router)
+}
+
+func AllowOriginFunc(r *http.Request, origin string) bool {
+	if origin == "http://example.com" {
+		return true
+	}
+	return true
 }
