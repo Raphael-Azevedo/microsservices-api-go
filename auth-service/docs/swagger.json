@@ -1,4 +1,8 @@
 {
+    "schemes": [
+        "http",
+        "https"
+    ],
     "swagger": "2.0",
     "info": {
         "description": "Product API with auhtentication",
@@ -11,7 +15,7 @@
         },
         "version": "1.0"
     },
-    "host": "localhost:8000",
+    "host": "localhost:8081",
     "basePath": "/",
     "paths": {
         "/user": {
@@ -142,5 +146,10 @@
             "name": "Authorization",
             "in": "header"
         }
-    }
+    },
+    "security": [
+        {
+            "MySecurityScheme": []
+        }
+    ]
 }

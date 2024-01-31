@@ -21,7 +21,7 @@ definitions:
       message:
         type: string
     type: object
-host: localhost:8000
+host: localhost:8081
 info:
   contact:
     email: rfcompanhia@hotmail.com
@@ -88,6 +88,11 @@ paths:
       summary: Login
       tags:
       - users
+schemes:
+- http
+- https
+security:
+- MySecurityScheme: []
 securityDefinitions:
   ApiKeyAuth:
     in: header

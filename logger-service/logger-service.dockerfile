@@ -24,5 +24,6 @@ COPY --from=builder /app/loggerServiceApp /app
 
 COPY ./cmd/.env ./.env
 
+EXPOSE 8002
 # Run the server executable
 CMD [ "/app/loggerServiceApp" ]

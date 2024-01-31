@@ -3,12 +3,13 @@ version: '3'
 services:
 
   logger-service:
+    container_name: logger-service
     build:
       context: ./../logger-service
       dockerfile: ./../logger-service/logger-service.dockerfile
     restart: always
     ports:
-      - "80:8000"
+      - "8002:8002"
     deploy:
       mode: replicated
       replicas: 1
@@ -27,6 +28,18 @@ services:
       replicas: 1
     networks:
       - mynetwork
+    
+  listener-service:
+    container_name: listener-service
+    build:
+      context: ./../listener-service
+      dockerfile: ./../listener-service/listener-service.dockerfile
+    restart: always
+    deploy:
+      mode: replicated
+      replicas: 1
+    networks:
+      - mynetwork
 
   mysql:
     image: mysql:5.7
@@ -39,7 +52,7 @@ services:
     ports:
       - 3306:3306
     volumes:
-      - .docker/mysql:/var/lib/mysql
+      - ./db-data/mysql/:/var/lib/mysql
     networks:
       - mynetwork
 
@@ -53,6 +66,8 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - ./db-data/rabbitmq/:/var/lib/rabbitmq
     networks:
       - mynetwork
 

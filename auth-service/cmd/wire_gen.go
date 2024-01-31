@@ -8,48 +8,39 @@ package main
 
 import (
 	"biz-hub-auth-service/internal/entity"
-	"biz-hub-auth-service/internal/event"
 	"biz-hub-auth-service/internal/infra/database"
 	"biz-hub-auth-service/internal/infra/web"
 	"biz-hub-auth-service/internal/usecase"
-	"biz-hub-auth-service/pkg/events"
 	"database/sql"
 	"github.com/google/wire"
+	"github.com/rabbitmq/amqp091-go"
 )
 
 import (
 	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 )
 
 // Injectors from wire.go:
 
-func NewCreateUserUseCase(db *sql.DB, eventDispatcher events.EventDispatcherInterface) *usecase.CreateUserUseCase {
+func NewCreateUserUseCase(db *sql.DB) *usecase.CreateUserUseCase {
 	userRepository := database.NewUserRepository(db)
-	userCreated := event.NewUserCreated()
-	createUserUseCase := usecase.NewCreateUserUseCase(userRepository, userCreated, eventDispatcher)
+	createUserUseCase := usecase.NewCreateUserUseCase(userRepository)
 	return createUserUseCase
 }
 
-func NewFindUserByEmailUseCase(db *sql.DB, eventDispatcher events.EventDispatcherInterface) *usecase.FindUserByEmailUseCase {
+func NewFindUserByEmailUseCase(db *sql.DB) *usecase.FindUserByEmailUseCase {
 	userRepository := database.NewUserRepository(db)
-	findUserByEmail := event.NewFindUserByEmail()
-	findUserByEmailUseCase := usecase.NewFindUserByEmailUseCase(userRepository, findUserByEmail, eventDispatcher)
+	findUserByEmailUseCase := usecase.NewFindUserByEmailUseCase(userRepository)
 	return findUserByEmailUseCase
 }
 
-func NewWebUserHandler(db *sql.DB, eventDispatcher events.EventDispatcherInterface) *web.WebUserHandler {
+func NewWebUserHandler(db *sql.DB, rabbit *amqp091.Connection) *web.WebUserHandler {
 	userRepository := database.NewUserRepository(db)
-	userCreated := event.NewUserCreated()
-	webUserHandler := web.NewWebUserHandler(eventDispatcher, userRepository, userCreated)
+	webUserHandler := web.NewWebUserHandler(userRepository, rabbit)
 	return webUserHandler
 }
 
 // wire.go:
 
 var setUserRepositoryDependency = wire.NewSet(database.NewUserRepository, wire.Bind(new(entity.UserRepositoryInterface), new(*database.UserRepository)))
-
-var setEventDispatcherDependency = wire.NewSet(events.NewEventDispatcher, event.NewUserCreated, wire.Bind(new(events.EventInterface), new(*event.UserCreated)), wire.Bind(new(events.EventDispatcherInterface), new(*events.EventDispatcher)))
-
-var setUserCreatedEvent = wire.NewSet(event.NewUserCreated, wire.Bind(new(events.EventInterface), new(*event.UserCreated)))
-
-var setFindUserByEmailEvent = wire.NewSet(event.NewFindUserByEmail, wire.Bind(new(events.EventInterface), new(*event.FindUserByEmail)))

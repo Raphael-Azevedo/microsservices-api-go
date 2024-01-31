@@ -22,8 +22,11 @@
 
 # Dependency directories (remove the comment below to include it)
 # vendor/
-
+/project/db-data
+/project/db-data/mongo
+/project/.docker
+/project/auth-service
 # Go workspace file
 go.work
-
+go.work.sum
 # End of https://www.toptal.com/developers/gitignore/api/go

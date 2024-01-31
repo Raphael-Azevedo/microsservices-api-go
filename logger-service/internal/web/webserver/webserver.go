@@ -31,6 +31,8 @@ func (s *WebServer) AddHandler(path string, handler http.HandlerFunc) {
 // start the server
 func (s *WebServer) Start() {
 	s.Router.Use(middleware.Heartbeat("/ping"))
+	s.Router.Use(middleware.Logger)
+	s.Router.Use(middleware.Recoverer)
 	s.Router.Use(cors.Handler(cors.Options{
 		AllowOriginFunc:  AllowOriginFunc,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},

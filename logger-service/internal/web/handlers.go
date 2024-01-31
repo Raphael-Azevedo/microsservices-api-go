@@ -3,6 +3,7 @@ package web
 import (
 	"biz-hub-logger-service/data"
 	"encoding/json"
+	"log"
 	"net/http"
 )
 
@@ -46,7 +47,7 @@ func (l *WebLoggerHandler) WriteLog(w http.ResponseWriter, r *http.Request) {
 		Name: requestPayload.Name,
 		Data: requestPayload.Data,
 	}
-
+	log.Println("Log inserted")
 	err = l.Models.LogEntry.Insert(event)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)

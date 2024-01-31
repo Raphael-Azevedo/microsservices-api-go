@@ -2,20 +2,25 @@ package main
 
 import (
 	"biz-hub-auth-service/configs"
-	"biz-hub-auth-service/internal/event/handler"
 	"biz-hub-auth-service/internal/infra/web/webserver"
-	"biz-hub-auth-service/pkg/events"
 	"database/sql"
 	"fmt"
 	"log"
+	"math"
+	"os"
 	"sync"
+	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/database/mysql"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
-	"github.com/streadway/amqp"
+	amqp "github.com/rabbitmq/amqp091-go"
 )
+
+type MenssagerConfig struct {
+	Rabbit *amqp.Connection
+}
 
 // @title           Go Auth Service
 // @version         1.0
@@ -26,12 +31,31 @@ import (
 // @contact.url    https://www.linkedin.com/in/raphael-a-neves/
 // @contact.email  rfcompanhia@hotmail.com
 
-// @host      localhost:8000
+// @host      localhost:8081
 // @BasePath  /
 // @securityDefinitions.apikey ApiKeyAuth
 // @in header
 // @name Authorization
+
+// @security MySecurityScheme
+// @name cors
+// @in header
+// @type apiKey
+
+// @schemes http https
 func main() {
+	// try to connect to rabbitmq
+	rabbitConn, err := connect()
+	if err != nil {
+		log.Println(err)
+		os.Exit(1)
+	}
+	defer rabbitConn.Close()
+
+	app := MenssagerConfig{
+		Rabbit: rabbitConn,
+	}
+
 	log.Println("started application")
 	configs, err := configs.LoadConfig(".")
 	if err != nil {
@@ -51,34 +75,15 @@ func main() {
 		}
 	}
 
-	rabbitMQChannel := getRabbitMQChannel()
-
-	eventDispatcher := events.NewEventDispatcher()
-	eventDispatcher.Register("UserCreated", &handler.UserCreatedHandler{
-		RabbitMQChannel: rabbitMQChannel,
-	})
-
 	webserver := webserver.NewWebServer(configs.WebServerPort)
-	webUserHandler := NewWebUserHandler(db, eventDispatcher)
+	webUserHandler := NewWebUserHandler(db, app.Rabbit)
 	webserver.AddHandler("/user", webUserHandler.Create)
 	webserver.AddHandler("/user/login", webUserHandler.Login)
 	fmt.Println("Starting web server on port", configs.WebServerPort)
 	webserver.Start(configs.TokenAuth, configs.JwtExperesIn)
 	var wg sync.WaitGroup
-    wg.Add(1)
-    wg.Wait()
-}
-
-func getRabbitMQChannel() *amqp.Channel {
-	conn, err := amqp.Dial("amqp://guest:guest@rabbitmq:5672/")
-	if err != nil {
-		panic(err)
-	}
-	ch, err := conn.Channel()
-	if err != nil {
-		panic(err)
-	}
-	return ch
+	wg.Add(1)
+	wg.Wait()
 }
 
 func runMigrations(db *sql.DB) error {
@@ -102,4 +107,35 @@ func runMigrations(db *sql.DB) error {
 	}
 
 	return nil
+}
+
+func connect() (*amqp.Connection, error) {
+	var counts int64
+	var backOff = 1 * time.Second
+	var connection *amqp.Connection
+
+	// don't continue until rabbit is ready
+	for {
+		c, err := amqp.Dial("amqp://guest:guest@rabbitmq")
+		if err != nil {
+			fmt.Println("RabbitMQ not yet ready...")
+			counts++
+		} else {
+			log.Println("Connected to RabbitMQ!")
+			connection = c
+			break
+		}
+
+		if counts > 5 {
+			fmt.Println(err)
+			return nil, err
+		}
+
+		backOff = time.Duration(math.Pow(float64(counts), 2)) * time.Second
+		log.Println("backing off...")
+		time.Sleep(backOff)
+		continue
+	}
+
+	return connection, nil
 }

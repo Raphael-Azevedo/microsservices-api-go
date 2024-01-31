@@ -3,14 +3,15 @@ package web
 import (
 	"biz-hub-auth-service/internal/dto"
 	"biz-hub-auth-service/internal/entity"
+	"biz-hub-auth-service/internal/event"
 	"biz-hub-auth-service/internal/usecase"
-	"biz-hub-auth-service/pkg/events"
-	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/jwtauth"
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 type Error struct {
@@ -18,20 +19,17 @@ type Error struct {
 }
 
 type WebUserHandler struct {
-	EventDispatcher events.EventDispatcherInterface
-	UserRepository  entity.UserRepositoryInterface
-	UserCreated     events.EventInterface
+	UserRepository entity.UserRepositoryInterface
+	Rabbit         *amqp.Connection
 }
 
 func NewWebUserHandler(
-	EventDispatcher events.EventDispatcherInterface,
 	UserRepository entity.UserRepositoryInterface,
-	UserCreated events.EventInterface,
+	Rabbit *amqp.Connection,
 ) *WebUserHandler {
 	return &WebUserHandler{
-		EventDispatcher: EventDispatcher,
-		UserRepository:  UserRepository,
-		UserCreated:     UserCreated,
+		UserRepository: UserRepository,
+		Rabbit:         Rabbit,
 	}
 }
 
@@ -53,7 +51,21 @@ func (h *WebUserHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	createUser := usecase.NewCreateUserUseCase(h.UserRepository, h.UserCreated, h.EventDispatcher)
+	userByEmail := usecase.NewFindUserByEmailUseCase(h.UserRepository)
+
+	email := usecase.FindUserByEmailInput{
+		Email: dto.Email,
+	}
+
+	user, _ := userByEmail.Execute(email)
+
+	if user.Email == dto.Email {
+		http.Error(w, "E-mail already registered", http.StatusConflict)
+		return
+	}
+
+	createUser := usecase.NewCreateUserUseCase(h.UserRepository)
+
 	output, err := createUser.Execute(dto)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -70,6 +82,7 @@ func (h *WebUserHandler) Create(w http.ResponseWriter, r *http.Request) {
 	// 	http.Error(w, err.Error(), http.StatusInternalServerError)
 	// 	return
 	// }
+	go h.logEventViaRabbit("authentication", fmt.Sprintf("user created: %s", dto.Email))
 }
 
 // Login godoc
@@ -97,10 +110,11 @@ func (h *WebUserHandler) Login(w http.ResponseWriter, r *http.Request) {
 		Email: userDto.Email,
 	}
 
-	userByEmail := usecase.NewFindUserByEmailUseCase(h.UserRepository, h.UserCreated, h.EventDispatcher)
+	userByEmail := usecase.NewFindUserByEmailUseCase(h.UserRepository)
+
 	user, err := userByEmail.Execute(dtoInput)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
+		http.Error(w, "User Not Found", http.StatusNotFound)
 		return
 	}
 
@@ -123,31 +137,35 @@ func (h *WebUserHandler) Login(w http.ResponseWriter, r *http.Request) {
 	// 	http.Error(w, err.Error(), http.StatusInternalServerError)
 	// 	return
 	// }
+	go h.logEventViaRabbit("authentication", fmt.Sprintf("%s logged in", dtoInput.Email))
 }
 
-// TODO logService should .env
-func (h *WebUserHandler) logRequest(name, data string) error {
-	var entry struct {
+func (h *WebUserHandler) logEventViaRabbit(name, data string) {
+	err := h.pushToQueue(name, data)
+	if err != nil {
+		panic(err)
+	}
+}
+
+// pushToQueue pushes a message into RabbitMQ
+func (h *WebUserHandler) pushToQueue(name, msg string) error {
+	emitter, err := event.NewEventEmitter(h.Rabbit)
+	if err != nil {
+		return err
+	}
+
+	var payload struct {
 		Name string `json:"name"`
 		Data string `json:"data"`
 	}
 
-	entry.Name = name
-	entry.Data = data
+	payload.Name = name
+	payload.Data = msg
 
-	jsonData, _ := json.MarshalIndent(entry, "", "\t")
-	logServiceUrl := "http://project-logger-service-1/log"
-
-	request, err := http.NewRequest("POST", logServiceUrl, bytes.NewBuffer(jsonData))
+	j, _ := json.MarshalIndent(&payload, "", "\t")
+	err = emitter.Push(string(j), "log.INFO")
 	if err != nil {
 		return err
 	}
-
-	client := &http.Client{}
-	_, err = client.Do(request)
-	if err != nil {
-		return err
-	}
-
 	return nil
 }

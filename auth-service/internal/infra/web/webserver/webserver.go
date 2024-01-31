@@ -3,12 +3,13 @@ package webserver
 import (
 	"net/http"
 
+	_ "biz-hub-auth-service/docs"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
 	"github.com/go-chi/jwtauth"
 	httpSwagger "github.com/swaggo/http-swagger"
-	_ "biz-hub-auth-service/docs"
-	"github.com/go-chi/cors"
 )
 
 type WebServer struct {
@@ -43,9 +44,11 @@ func (s *WebServer) Start(token *jwtauth.JWTAuth, expiresIn int) {
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
 		ExposedHeaders:   []string{"Link"},
 		AllowCredentials: true,
-		MaxAge:           300, // Maximum value not ignored by any of major browsers
+		MaxAge:           300,
 	}))
+
 	s.Router.Get("/docs/*", httpSwagger.Handler(httpSwagger.URL("http://localhost:8081/docs/doc.json")))
+
 	for path, handler := range s.Handlers {
 		s.Router.Handle(path, handler)
 	}

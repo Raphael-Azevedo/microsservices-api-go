@@ -1,26 +1,19 @@
 package usecase
 
 import (
-	"biz-hub-auth-service/internal/entity"
-	"biz-hub-auth-service/pkg/events"
 	"biz-hub-auth-service/internal/dto"
+	"biz-hub-auth-service/internal/entity"
 )
 
 type CreateUserUseCase struct {
-	UserRepository  entity.UserRepositoryInterface
-	UserCreated     events.EventInterface
-	EventDispatcher events.EventDispatcherInterface
+	UserRepository entity.UserRepositoryInterface
 }
 
 func NewCreateUserUseCase(
 	UserRepository entity.UserRepositoryInterface,
-	UserCreated events.EventInterface,
-	EventDispatcher events.EventDispatcherInterface,
 ) *CreateUserUseCase {
 	return &CreateUserUseCase{
-		UserRepository:  UserRepository,
-		UserCreated:     UserCreated,
-		EventDispatcher: EventDispatcher,
+		UserRepository: UserRepository,
 	}
 }
 
@@ -33,9 +26,6 @@ func (c *CreateUserUseCase) Execute(input dto.CreateUserInput) (entity.User, err
 	if err := c.UserRepository.Create(user); err != nil {
 		return entity.User{}, err
 	}
-
-	c.UserCreated.SetPayload(user)
-	c.EventDispatcher.Dispatch(c.UserCreated)
 
 	return *user, nil
 }
