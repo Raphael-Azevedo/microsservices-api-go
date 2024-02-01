@@ -1,9 +1,12 @@
 package event
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"net/rpc"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -94,10 +97,11 @@ func handlePayload(payload Payload) {
 			log.Println(err)
 		}
 
-	case "auth":
-		// authenticate
-	case "logger":
-		// add logger
+	case "mail":
+		err := sendMail(payload)
+		if err != nil {
+			log.Println(err)
+		}
 	default:
 		err := logItemViaRPC(payload)
 		if err != nil {
@@ -119,5 +123,32 @@ func logItemViaRPC(payload Payload) error {
 		return err
 	}
 	log.Printf("Messager send by: %s", payload.Name)
+	return nil
+}
+
+func sendMail(payload Payload) error {
+	jsonData, _ := json.Marshal(payload)
+
+	mailerServiceURL := "http://mailer-service/send"
+
+	request, err := http.NewRequest("POST", mailerServiceURL, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return err
+	}
+	log.Println(payload)
+	request.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+
+	response, err := client.Do(request)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusAccepted {
+		return errors.New("failed to send mail")
+	}
+
 	return nil
 }

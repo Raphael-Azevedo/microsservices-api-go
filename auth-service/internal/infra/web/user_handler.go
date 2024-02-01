@@ -77,12 +77,8 @@ func (h *WebUserHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// err = h.logRequest("authentication", fmt.Sprintf("user created: %s", dto.Email))
-	// if err != nil {
-	// 	http.Error(w, err.Error(), http.StatusInternalServerError)
-	// 	return
-	// }
 	go h.logEventViaRabbit("authentication", fmt.Sprintf("user created: %s", dto.Email))
+	go h.logEventViaRabbit("mail", dto.Email)
 }
 
 // Login godoc
@@ -132,11 +128,6 @@ func (h *WebUserHandler) Login(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(accessToken)
 
-	// err = h.logRequest("authentication", fmt.Sprintf("%s logged in", dtoInput.Email))
-	// if err != nil {
-	// 	http.Error(w, err.Error(), http.StatusInternalServerError)
-	// 	return
-	// }
 	go h.logEventViaRabbit("authentication", fmt.Sprintf("%s logged in", dtoInput.Email))
 }
 
