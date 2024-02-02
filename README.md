@@ -1,32 +1,38 @@
-Microsserviços em Go
+# Microsserviços em Go
 Este projeto consiste em quatro microsserviços escritos em Go, cada um com uma responsabilidade específica. Eles são executados em um ambiente Docker usando o Docker Compose.
 
-Serviços
-1. Auth Service
+## Serviços
+
+### 1. Auth Service
+
 O Auth Service é responsável pela autenticação e gerenciamento de contas de usuário, utilizando tokens JWT.
 
 Endpoints:
-POST /user/login: Realiza login e emite um token JWT.
-POST /user: Cria uma nova conta de usuário.
+- `POST /user/login`: Realiza login e emite um token JWT.
+- `POST /user`: Cria uma nova conta de usuário.
 
-2. Logger Service
+### 2. Logger Service
+ 
 O Logger Service recebe logs dos outros serviços e os armazena no MongoDB.
 
-3. Listener Service
+### 3. Listener Service
+
 O Listener Service funciona como um message bus, recebendo mensagens do RabbitMQ e encaminhando-as para os serviços correspondentes.
 
-4. Mail Service
+### 4. Mail Service
+
 O Mail Service envia e-mails e é acionado quando o Auth Service envia uma mensagem para o Listener Service, que, por sua vez, direciona a mensagem para o Mail Service.
 
 Banco de Dados
 O banco de dados utilizado para armazenar informações de login é o MySQL.
 
 Executando a Aplicação
-Certifique-se de ter o Docker e o Docker Compose instalados em sua máquina. Em seguida, execute o seguinte comando na raiz do projeto:
+Certifique-se de ter o Docker e o Docker Compose instalados em sua máquina. Em seguida, execute o seguinte comando na pasta /project do projeto:
 
-bash
-Copy code
-docker-compose up
+```
+docker-compose up --build -d
+```
+
 Isso iniciará todos os serviços e suas dependências.
 
 Configuração
