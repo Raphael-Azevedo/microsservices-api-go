@@ -39,19 +39,20 @@ func main() {
 			panic(err)
 		}
 	}()
+	data := data.New(client)
 
 	err = rpc.Register(new(RPCServer))
 	go rpcListen(configs)
 
-	data := data.New(client)
+	go gRPCListen(configs, data)
 
+	var wg sync.WaitGroup
 	webserver := webserver.NewWebServer(configs.WebServerPort)
 	webUserHandler := web.NewWebLoggerHandler(data)
 	webserver.AddHandler("/log", webUserHandler.WriteLog)
 	fmt.Println("Starting web server on port", configs.WebServerPort)
-	webserver.Start()
-	var wg sync.WaitGroup
-	wg.Add(1)
+	webserver.Start(&wg)
+
 	wg.Wait()
 }
 

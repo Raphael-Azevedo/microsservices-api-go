@@ -2,6 +2,7 @@ package webserver
 
 import (
 	"net/http"
+	"sync"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -29,7 +30,8 @@ func (s *WebServer) AddHandler(path string, handler http.HandlerFunc) {
 // loop through the handlers and add them to the router
 // register middeleware logger
 // start the server
-func (s *WebServer) Start() {
+func (s *WebServer) Start(wg *sync.WaitGroup) {
+	wg.Add(1)
 	s.Router.Use(middleware.Heartbeat("/ping"))
 	s.Router.Use(middleware.Logger)
 	s.Router.Use(middleware.Recoverer)

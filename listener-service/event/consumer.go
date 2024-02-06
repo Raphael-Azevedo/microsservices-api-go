@@ -2,14 +2,20 @@ package event
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"listener-service/logs"
 	"log"
 	"net/http"
-	"net/rpc"
+
+	// "net/rpc"
+	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 type Consumer struct {
@@ -92,7 +98,7 @@ func (consumer *Consumer) Listen(topics []string) error {
 func handlePayload(payload Payload) {
 	switch payload.Name {
 	case "log", "event", "authentication":
-		err := logItemViaRPC(payload)
+		err := logItemViaGRPC(payload)
 		if err != nil {
 			log.Println(err)
 		}
@@ -103,7 +109,7 @@ func handlePayload(payload Payload) {
 			log.Println(err)
 		}
 	default:
-		err := logItemViaRPC(payload)
+		err := logItemViaGRPC(payload)
 		if err != nil {
 			log.Println(err)
 		}
@@ -111,20 +117,20 @@ func handlePayload(payload Payload) {
 	}
 }
 
-func logItemViaRPC(payload Payload) error {
-	client, err := rpc.Dial("tcp", "logger-service:5001")
-	if err != nil {
-		return err
-	}
+// func logItemViaRPC(payload Payload) error {
+// 	client, err := rpc.Dial("tcp", "logger-service:5001")
+// 	if err != nil {
+// 		return err
+// 	}
 
-	var result string
-	err = client.Call("RPCServer.LogInfo", payload, &result)
-	if err != nil {
-		return err
-	}
-	log.Printf("Messager send by: %s", payload.Name)
-	return nil
-}
+// 	var result string
+// 	err = client.Call("RPCServer.LogInfo", payload, &result)
+// 	if err != nil {
+// 		return err
+// 	}
+// 	log.Printf("Messager send by: %s", payload.Name)
+// 	return nil
+// }
 
 func sendMail(payload Payload) error {
 	jsonData, _ := json.Marshal(payload)
@@ -150,5 +156,30 @@ func sendMail(payload Payload) error {
 		return errors.New("failed to send mail")
 	}
 
+	return nil
+}
+
+func logItemViaGRPC(payload Payload) error {
+	client, err := grpc.Dial("logger-service:50051", grpc.WithTransportCredentials(insecure.NewCredentials()), grpc.WithBlock())
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+
+	conn := logs.NewLoggerServiceClient(client)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	_, err = conn.WriteLog(ctx, &logs.LogRequest{
+		LogEntry: &logs.Log{
+			Name: payload.Name,
+			Data: payload.Data,
+		},
+	})
+	if err != nil {
+		return err
+	}
+
+	log.Printf("Messager send by: %s", payload.Name)
 	return nil
 }
